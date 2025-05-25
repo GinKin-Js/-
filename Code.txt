@@ -1,0 +1,52 @@
+#include <Servo.h>
+/*
+  การต่อขา Ultrasonic - Uno
+  VCC - 5V
+  GND - GND
+  Trig - 9
+  Echo - 8
+  การต่อขา Servo - Uno
+  สีแดง - 5V
+  สีน้ำตาล - GND
+  สีส้ม - 11
+*/
+
+// กำหนด Pin สำหรับเซนเซอร์ Ultrasonic
+#define TRIGGER_PIN  9
+#define ECHO_PIN     10
+#define SERVO_PIN  11
+
+
+Servo servoMotor;   // สร้างออบเจกต์ servo
+long previousDistance = 0;
+int sensor = 600; // ระยะที่ให้เซนเซอร์ทำงาน mm
+
+long readUltrasonicDistance(int triggerPin, int echoPin) {
+  pinMode(triggerPin, OUTPUT);
+  digitalWrite(triggerPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(triggerPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(triggerPin, LOW);
+  pinMode(echoPin, INPUT);
+  return pulseIn(echoPin, HIGH);
+}
+
+void setup() {
+  servoMotor.attach(SERVO_PIN);  // กำหนด pin ที่เชื่อมต่อกับ Servo
+  servoMotor.write(0);   // เริ่มต้นด้วยการปิดฝาถังขยะ
+  Serial.begin(9600);
+}
+
+void loop() {
+  long distance = readUltrasonicDistance(TRIGGER_PIN, ECHO_PIN);
+  Serial.println(distance);
+  if (distance <= sensor && previousDistance > sensor) {  // หากมีวัตถุเข้ามาใกล้ในระยะ sensor
+    servoMotor.write(90);   // เปิดฝาถังขยะ
+  } else if (distance > sensor && previousDistance <= sensor) {  // หากวัตถุออกจากระยะ sensor
+    servoMotor.write(0);   // ปิดฝาถังขยะ
+  }
+
+  previousDistance = distance;
+  delay(100);
+}
