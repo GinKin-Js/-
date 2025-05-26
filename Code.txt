@@ -1,52 +1,86 @@
 #include <Servo.h>
-/*
-  การต่อขา Ultrasonic - Uno
-  VCC - 5V
-  GND - GND
-  Trig - 9
-  Echo - 8
-  การต่อขา Servo - Uno
-  สีแดง - 5V
-  สีน้ำตาล - GND
-  สีส้ม - 11
-*/
 
-// กำหนด Pin สำหรับเซนเซอร์ Ultrasonic
-#define TRIGGER_PIN  9
-#define ECHO_PIN     10
-#define SERVO_PIN  11
+#define TRIG_PIN 3
+#define ECHO_PIN 4
+#define INFRARED_PIN 7
+#define MAX_DISTANCE_CM 20
 
+Servo lid;
 
-Servo servoMotor;   // สร้างออบเจกต์ servo
-long previousDistance = 0;
-int sensor = 600; // ระยะที่ให้เซนเซอร์ทำงาน mm
-
-long readUltrasonicDistance(int triggerPin, int echoPin) {
-  pinMode(triggerPin, OUTPUT);
-  digitalWrite(triggerPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(triggerPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(triggerPin, LOW);
-  pinMode(echoPin, INPUT);
-  return pulseIn(echoPin, HIGH);
-}
+bool systemPaused = false;
+bool lidOpen = false;
+unsigned long lidTimer = 0;
+unsigned long blockStart = 0;
+unsigned long clearStart = 0;
 
 void setup() {
-  servoMotor.attach(SERVO_PIN);  // กำหนด pin ที่เชื่อมต่อกับ Servo
-  servoMotor.write(0);   // เริ่มต้นด้วยการปิดฝาถังขยะ
+  lid.attach(A3);
+  lid.write(0); // ปิดฝาตอนเริ่ม
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(INFRARED_PIN, INPUT);
   Serial.begin(9600);
 }
 
+// ฟังก์ชันอ่านระยะจาก HC-SR04
+int getDistanceCM() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH, 20000); // รอไม่เกิน 20 ms
+  int distance = duration * 0.034 / 2;
+  return distance;
+}
+
 void loop() {
-  long distance = readUltrasonicDistance(TRIGGER_PIN, ECHO_PIN);
-  Serial.println(distance);
-  if (distance <= sensor && previousDistance > sensor) {  // หากมีวัตถุเข้ามาใกล้ในระยะ sensor
-    servoMotor.write(90);   // เปิดฝาถังขยะ
-  } else if (distance > sensor && previousDistance <= sensor) {  // หากวัตถุออกจากระยะ sensor
-    servoMotor.write(0);   // ปิดฝาถังขยะ
+  int distance = getDistanceCM();
+  bool infraredBlocked = digitalRead(INFRARED_PIN) == LOW;
+  unsigned long now = millis();
+
+  // ตรวจจับวัตถุขวางฝานานเกิน 60 วินาที → เข้าสู่โหมด pause
+  if (!systemPaused && infraredBlocked) {
+    if (blockStart == 0) blockStart = now;
+    if (now - blockStart >= 60000) {
+      systemPaused = true;
+      Serial.println("หยุดการทำงาน - มีวัตถุขวาง");
+      clearStart = 0;
+    }
   }
 
-  previousDistance = distance;
-  delay(100);
+  // ตรวจจับว่าไม่มีวัตถุขวาง → resume ระบบ
+  else if (!infraredBlocked) {
+    blockStart = 0;
+    if (systemPaused) {
+      if (clearStart == 0) clearStart = now;
+      if (now - clearStart >= 60000) {
+        systemPaused = false;
+        clearStart = 0;
+        Serial.println("กลับมาทำงาน");
+      }
+    }
+  }
+
+  // ทำงานปกติเมื่อไม่อยู่ในโหมด pause
+  if (!systemPaused) {
+    if (distance > 1 && distance <= MAX_DISTANCE_CM) {
+      if (!lidOpen) {
+        lid.write(90); // เปิดฝา
+        lidOpen = true;
+        Serial.println("เปิดฝา");
+      }
+      lidTimer = now;
+    }
+
+    // ปิดฝาเมื่อมือออกไปเกิน 5 วินาที
+    if (lidOpen && (now - lidTimer >= 5000)) {
+      lid.write(0); // ปิดฝา
+      lidOpen = false;
+      Serial.println("ปิดฝา");
+    }
+  }
+
+  delay(100); // พักระบบเล็กน้อย
 }
