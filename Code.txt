@@ -2,23 +2,18 @@
 
 #define TRIG_PIN 3
 #define ECHO_PIN 4
-#define INFRARED_PIN 7
 #define MAX_DISTANCE_CM 20
 
 Servo lid;
 
-bool systemPaused = false;
 bool lidOpen = false;
 unsigned long lidTimer = 0;
-unsigned long blockStart = 0;
-unsigned long clearStart = 0;
 
 void setup() {
   lid.attach(A3);
   lid.write(0); // ปิดฝาตอนเริ่ม
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
-  pinMode(INFRARED_PIN, INPUT);
   Serial.begin(9600);
 }
 
@@ -37,50 +32,24 @@ int getDistanceCM() {
 
 void loop() {
   int distance = getDistanceCM();
-  bool infraredBlocked = digitalRead(INFRARED_PIN) == LOW;
   unsigned long now = millis();
 
-  // ตรวจจับวัตถุขวางฝานานเกิน 60 วินาที → เข้าสู่โหมด pause
-  if (!systemPaused && infraredBlocked) {
-    if (blockStart == 0) blockStart = now;
-    if (now - blockStart >= 60000) {
-      systemPaused = true;
-      Serial.println("หยุดการทำงาน - มีวัตถุขวาง");
-      clearStart = 0;
+  // ถ้ามีมือเข้าใกล้ในระยะที่กำหนด → เปิดฝา
+  if (distance > 1 && distance <= MAX_DISTANCE_CM) {
+    if (!lidOpen) {
+      lid.write(90); // เปิดฝา
+      lidOpen = true;
+      Serial.println("เปิดฝา");
     }
+    lidTimer = now;
   }
 
-  // ตรวจจับว่าไม่มีวัตถุขวาง → resume ระบบ
-  else if (!infraredBlocked) {
-    blockStart = 0;
-    if (systemPaused) {
-      if (clearStart == 0) clearStart = now;
-      if (now - clearStart >= 60000) {
-        systemPaused = false;
-        clearStart = 0;
-        Serial.println("กลับมาทำงาน");
-      }
-    }
+  // ถ้าไม่มีมืออยู่แล้วเกิน 5 วินาที → ปิดฝา
+  if (lidOpen && (now - lidTimer >= 5000)) {
+    lid.write(0); // ปิดฝา
+    lidOpen = false;
+    Serial.println("ปิดฝา");
   }
 
-  // ทำงานปกติเมื่อไม่อยู่ในโหมด pause
-  if (!systemPaused) {
-    if (distance > 1 && distance <= MAX_DISTANCE_CM) {
-      if (!lidOpen) {
-        lid.write(90); // เปิดฝา
-        lidOpen = true;
-        Serial.println("เปิดฝา");
-      }
-      lidTimer = now;
-    }
-
-    // ปิดฝาเมื่อมือออกไปเกิน 5 วินาที
-    if (lidOpen && (now - lidTimer >= 5000)) {
-      lid.write(0); // ปิดฝา
-      lidOpen = false;
-      Serial.println("ปิดฝา");
-    }
-  }
-
-  delay(100); // พักระบบเล็กน้อย
+  delay(100); // หน่วงเวลาเล็กน้อย
 }
