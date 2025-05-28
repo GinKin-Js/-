@@ -1,17 +1,21 @@
+// แก้ไข
+
+
+
 #include <Servo.h>
 
-// กำหนดขาเซนเซอร์
 const int trigPin = 9;
 const int echoPin = 10;
-
-// สร้างอ็อบเจกต์เซอร์โว
 Servo myServo;
+
+bool objectDetected = false;
+unsigned long lastSeenTime = 0;
 
 void setup() {
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   myServo.attach(6);
-  myServo.write(0); // เริ่มที่ 0 องศา
+  myServo.write(0); // เริ่มต้นที่ 0 องศา
 
   Serial.begin(9600);
 }
@@ -28,19 +32,26 @@ void loop() {
   long duration = pulseIn(echoPin, HIGH);
   float distance = duration * 0.034 / 2;
 
-  // แสดงระยะทาง
   Serial.print("Distance: ");
   Serial.print(distance);
   Serial.println(" cm");
 
-  // ตรวจจับวัตถุในระยะ 10 ซม.
+  // ตรวจจับวัตถุ
   if (distance > 0 && distance <= 10.0) {
-    Serial.println("Detected → Servo 90°");
-    myServo.write(90);
+    if (!objectDetected) {
+      Serial.println("Detected → Servo 90°");
+      myServo.write(90);
+      objectDetected = true;
+    }
+    lastSeenTime = millis(); // บันทึกเวลาล่าสุดที่เห็นวัตถุ
   } else {
-    Serial.println("Not Detected → Servo 0°");
-    myServo.write(0);
+    // ถ้าเคยเห็นวัตถุ และผ่านไปเกิน 5 วินาทีแล้ว → กลับไป 0 องศา
+    if (objectDetected && millis() - lastSeenTime >= 5000) {
+      Serial.println("Object gone for 5s → Servo 0°");
+      myServo.write(0);
+      objectDetected = false;
+    }
   }
 
-  delay(300);
+  delay(200);
 }
