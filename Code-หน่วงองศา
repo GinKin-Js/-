@@ -1,0 +1,68 @@
+#include <Servo.h>
+
+const int trigPin = 9;
+const int echoPin = 10;
+Servo myServo;
+
+bool objectDetected = false;
+unsigned long lastSeenTime = 0;
+int currentAngle = 0;  // ติดตามมุมปัจจุบันของเซอร์โว
+
+void setup() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  myServo.attach(6);
+  myServo.write(currentAngle); // เริ่มที่ 0 องศา
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  // อ่านระยะทางจากเซนเซอร์
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  long duration = pulseIn(echoPin, HIGH);
+  float distance = duration * 0.034 / 2;
+
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  if (distance > 0 && distance <= 10.0) {
+    if (!objectDetected) {
+      Serial.println("Detected → Smooth to 90°");
+      smoothMove(currentAngle, 90); // หมุนอย่างนุ่มนวลไปที่ 90°
+      currentAngle = 90;
+      objectDetected = true;
+    }
+    lastSeenTime = millis();
+  } else {
+    if (objectDetected && millis() - lastSeenTime >= 5000) {
+      Serial.println("No object for 5s → Smooth to 0°");
+      smoothMove(currentAngle, 0); // หมุนอย่างนุ่มนวลกลับไปที่ 0°
+      currentAngle = 0;
+      objectDetected = false;
+    }
+  }
+
+  delay(200);
+}
+
+// ฟังก์ชันหมุนเซอร์โวอย่างนุ่มนวล
+void smoothMove(int fromAngle, int toAngle) {
+  if (fromAngle < toAngle) {
+    for (int pos = fromAngle; pos <= toAngle; pos++) {
+      myServo.write(pos);
+      delay(10); // หน่วงเล็กน้อยเพื่อให้เคลื่อนไหวดูนุ่มนวล
+    }
+  } else {
+    for (int pos = fromAngle; pos >= toAngle; pos--) {
+      myServo.write(pos);
+      delay(10);
+    }
+  }
+}
