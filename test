@@ -1,0 +1,28 @@
+#include <Servo.h>
+
+const int sensorPin = 2;     // ขาที่เชื่อมกับเอาต์พุตของ E3F-DS30C4
+const int servoPin = 9;      // ขาที่เชื่อมกับเซอร์โวมอเตอร์
+Servo myServo;
+
+void setup() {
+  pinMode(sensorPin, INPUT_PULLUP);  // ใช้ internal pull-up
+  myServo.attach(servoPin);
+  myServo.write(0);  // เริ่มต้นที่ 0 องศา
+  Serial.begin(9600);  // สำหรับดูสถานะทาง Serial Monitor
+}
+
+void loop() {
+  int sensorValue = digitalRead(sensorPin);
+
+  if (sensorValue == LOW) {
+    // มีวัตถุอยู่ใกล้ (ในระยะประมาณ 5 ซม.)
+    myServo.write(90);
+    Serial.println("Object detected! Rotating servo to 90 degrees.");
+  } else {
+    // ไม่มีวัตถุ
+    myServo.write(0);
+    Serial.println("No object. Servo at 0 degrees.");
+  }
+
+  delay(100);  // หน่วงเวลาเล็กน้อยเพื่อความเสถียร
+}
